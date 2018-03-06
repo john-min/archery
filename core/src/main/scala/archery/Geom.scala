@@ -2,6 +2,7 @@ package archery
 
 import scala.math.{min, max, sqrt}
 import java.lang.Float.{isNaN, isInfinite}
+import net.sf.geographiclib.{Geodesic, PolygonArea}
 
 /**
  * Geometry represents a box (or point).
@@ -19,7 +20,8 @@ sealed trait Geom {
   def width: Float = x2 - x
   def height: Float = y2 - y
 
-  def area: Float = width * height
+  def areaL Float = boxArea(x, y, x2, y2)
+  //def area: Float = width * height
 
   /**
    * Distance between this geometry and the given point.
@@ -29,8 +31,27 @@ sealed trait Geom {
    * use). For boxes, this means that points contained within the box
    * (or on the perimeter) have a distance of zero.
    */
+
+  /**
+   * Geodesic area of a bounding box
+   * (x1, y1) is the lower left point and (x2, y2) is upper right
+  */
+  def boxArea(x1: Double, y1: Double, x2: Double, y2: Double): Double = {
+
+    val box = new PolygonArea(Geodesic.WGS84, false)
+    box.AddPoint(y, x)
+    box.AddPoint(y2, x)
+    box.AddPoint(y2, x2)
+    box.AddPoint(y, x2)
+    box.AddPoint(y, x)  
+
+    val area = Math.abs(box.Compute().area)
+    area
+  }
+
+
   def distance(pt: Point): Double =
-    sqrt(distanceSquared(pt))
+    Geodesic.WGS84.Inverse(x, y, pt.x, pt.y)
 
   /**
    * Distance between this geometry and the given point, squared.
@@ -40,12 +61,13 @@ sealed trait Geom {
    * where we want to compare two distances (without caring about the
    * actual distance value).
    */
+  /*
   def distanceSquared(pt: Point): Double = {
     val dx = (if (pt.x < x) x - pt.x else if (pt.x < x2) 0F else pt.x - x2).toDouble
     val dy = (if (pt.y < y) y - pt.y else if (pt.y < y2) 0F else pt.y - y2).toDouble
     dx * dx + dy * dy
   }
-
+  */
   /**
    * Return whether all the bounds of the geometry are finite.
    *
@@ -142,10 +164,9 @@ case class Point(x: Float, y: Float) extends Geom {
   override def lowerLeft: Point = this
   override def upperRight: Point = this
 
-  override def distanceSquared(pt: Point): Double = {
-    val dx = (pt.x - x).toDouble
-    val dy = (pt.y - y).toDouble
-    dx * dx + dy * dy
+  override def distance(pt: Point): Double = {
+    val dist = Geodesic.WGS84.Inverse(x, y, pt.x, pt.y).s12
+    dist
   }
 
   override def isFinite: Boolean =
